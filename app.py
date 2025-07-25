@@ -10,27 +10,29 @@ import time
 # 🎨 Config de la page avec logo
 st.set_page_config(
     page_title="MedPredict",
-    page_icon="logo.png",  # Favicon logo
+    page_icon="logo.png",
     layout="centered"
 )
 
 # 🖼️ Afficher le logo en haut
-st.image("logo.png", width=120)
+try:
+    st.image("logo.png", width=120)
+except Exception:
+    st.warning("Logo non trouvé.")
 
-# 🏷️ Titre principal
 st.title("MedPredict - Maintenance Prédictive")
 st.write("Bienvenue sur votre application de maintenance prédictive.")
 
-# 📋 Champs d'informations
+# 📋 Champs
 equipment_name = st.text_input("Equipment Name", placeholder="Surgical Microscope")
 company = st.text_input("Company", placeholder="Leica")
 model = st.text_input("Model", placeholder="Provido")
 
-# 📂 Upload fichiers
+# 📂 Upload
 log_file = st.file_uploader("Upload Logs (Excel .xlsx)", type=["xlsx"])
 manual_file = st.file_uploader("Upload Technical Manual (PDF)", type=["pdf"])
 
-# 📦 Charger modèle et scaler
+# 📦 Charger modèle
 try:
     model_pfe = joblib.load("modele_pfe.pkl")
     scaler_pfe = joblib.load("scaler_pfe.pkl")
@@ -38,7 +40,7 @@ except Exception as e:
     st.error("❌ Impossible de charger le modèle. Vérifiez les fichiers modele_pfe.pkl et scaler_pfe.pkl.")
     st.stop()
 
-# 📑 Extraire actions recommandées du PDF
+# 📑 Lecture PDF
 def extract_actions_from_pdf(pdf_file):
     actions = {}
     reader = pypdf.PdfReader(pdf_file)
@@ -51,55 +53,44 @@ def extract_actions_from_pdf(pdf_file):
                     actions[key.strip()] = value.strip()
     return actions
 
-# 📥 Fonction pour télécharger Excel
+# 📥 Export Excel
 def to_excel(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Results')
-        writer.save()
-    processed_data = output.getvalue()
-    return processed_data
+    return output.getvalue()
 
-# 🔔 Jouer son d'alarme
+# 🔔 Alarme
 def play_alert():
-    audio_file = open('alert.mp3', 'rb')
-    audio_bytes = audio_file.read()
-    b64 = base64.b64encode(audio_bytes).decode()
-    md = f"""
-    <audio autoplay="true">
-    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-    </audio>
-    """
-    st.markdown(md, unsafe_allow_html=True)
+    try:
+        with open("alert.mp3", "rb") as audio_file:
+            audio_bytes = audio_file.read()
+            st.audio(audio_bytes, format="audio/mp3", start_time=0)
+    except:
+        st.warning("Fichier audio d'alerte introuvable.")
 
-# 🚀 Bouton Submit
+# 🚀 Lancer analyse
 if st.button("Submit"):
     if equipment_name and company and model and log_file and manual_file:
-        st.success("✅ Informations et fichiers chargés avec succès.")
+        st.success("✅ Informations et fichiers chargés.")
 
         try:
-            # 📊 Lire fichier Excel
             data = pd.read_excel(log_file)
             st.write("✅ Données chargées :")
             st.dataframe(data.head())
 
-            # 🔄 Prétraitement
             numeric_data = data.select_dtypes(include=['float64', 'int64'])
             data_scaled = scaler_pfe.transform(numeric_data)
 
-            # 🤖 Prédictions
             predictions = model_pfe.predict(data_scaled)
             data['Prediction'] = predictions
 
-            # 📑 Actions recommandées
             actions = extract_actions_from_pdf(manual_file)
-            data['Recommended Action'] = data['Prediction'].map(actions)
+            data['Recommended Action'] = data['Prediction'].map(lambda x: actions.get(str(x), "❗ Non défini"))
 
-            # 📊 Afficher résultat
             st.write("### 🔥 Résultat avec Actions Recommandées :")
             st.dataframe(data)
 
-            # 📥 Bouton téléchargement Excel
             excel_data = to_excel(data)
             st.download_button(
                 label="📥 Download Results as Excel",
@@ -108,19 +99,13 @@ if st.button("Submit"):
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-            # 🚨 POP-UP et Alarme
-            if "Failure" in predictions:
-                st.error("⚠️ Panne détectée ! Une alarme sonnera 30 minutes avant l'événement.")
-                
-                # Simuler l'attente de 30 minutes (pour test : réduire à 5 secondes)
-                # time.sleep(1800)  # 30 min réelles
-                time.sleep(5)  # ⏱️ pour test rapide
-                
+            if any("Failure" in str(p) for p in predictions):
+                st.error("⚠️ Panne détectée ! Alarme dans 3 secondes.")
+                time.sleep(3)
                 play_alert()
 
         except Exception as e:
-            st.error(f"❌ Erreur lors du traitement : {e}")
-
+            st.error(f"❌ Erreur : {e}")
     else:
         st.error("❌ Veuillez remplir tous les champs et uploader les deux fichiers.")
 
@@ -134,4 +119,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 print("✅ L'application a bien démarré")
+
