@@ -1,0 +1,26 @@
+body {
+    background-color: #f0f2f6;
+    font-family: 'Arial', sans-serif;
+}
+
+.stButton > button {
+    background-color: #4CAF50;
+    color: white;
+    border-radius: 8px;
+    padding: 10px 20px;
+    border: none;
+    font-size: 16px;
+}
+
+.stButton > button:hover {
+    background-color: #45a049;
+}
+footer {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    text-align: center;
+    color: #888888;
+    padding: 10px 0;
+    font-size: 14px;
+}
